@@ -1,0 +1,114 @@
+Description:  This script will create the security Group
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: PROD
+
+Resources:
+  AppLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue VPCID
+      GroupDescription: Access to the load balancer that sits in front of ECS
+      SecurityGroupIngress:
+        # Allow access from anywhere to our ECS services
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: App-LoadBalancers-SecurityGroup
+  
+  WebLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !ImportValue VPCID
+      GroupDescription: Access to the load balancer that sits in front of ECS
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: Web-LoadBalancers-SecurityGroup
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        GroupName: ApplicationServerSecGrp
+        VpcId: !ImportValue VPCID
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourceSecurityGroupId: !Ref AppLoadBalancerSecurityGroup
+        Tags:
+        - Key: Name
+          Value: App-EC2-SecurityGroup
+  
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        GroupName: WebServerSecGrp
+        VpcId: !ImportValue VPCID
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourceSecurityGroupId: !Ref WebLoadBalancerSecurityGroup
+        Tags:
+        - Key: Name
+          Value: Web-EC2-SecurityGroup
+  
+  DatabaseSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: !ImportValue VPCID
+            GroupDescription: Access to database
+            SecurityGroupIngress:
+                - SourceSecurityGroupId: !Ref AppSecurityGroup
+                  FromPort: 3306
+                  ToPort: 3306
+                  IpProtocol: tcp
+            Tags: 
+                - Key: Name
+                  Value: DB-security-group
+
+Outputs:
+  AppLoadBalancerSecurityGroup:
+      Description: AppLoadBalancerSecurityGroup
+      Value: !Ref AppLoadBalancerSecurityGroup
+      Export:
+        Name: AppLoadBalancerSecurityGroup
+  
+  WebLoadBalancerSecurityGroup:
+      Description: WebLoadBalancerSecurityGroup
+      Value: !Ref WebLoadBalancerSecurityGroup
+      Export:
+        Name: WebLoadBalancerSecurityGroup
+
+  AppSecurityGroup:
+      Description: AppSecurityGroup
+      Value: !Ref AppSecurityGroup
+      Export:
+        Name: AppSecurityGroup
+  
+  WebSecurityGroup:
+      Description: WebSecurityGroup
+      Value: !Ref WebSecurityGroup
+      Export:
+        Name: WebSecurityGroup
+
+  DatabaseSecurityGroup:
+      Description: DatabaseSecurityGroup
+      Value: !Ref DatabaseSecurityGroup
+      Export:
+        Name: DatabaseSecurityGroup
+      
+ 

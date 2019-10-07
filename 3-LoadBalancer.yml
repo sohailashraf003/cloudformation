@@ -1,0 +1,91 @@
+Description:  This template deploys a Loadbalance
+Parameters:
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: PROD
+
+Resources:
+  AppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-APP
+      Subnets: 
+        - Fn::ImportValue:  PublicSubnet1
+        - Fn::ImportValue:  PublicSubnet2
+      SecurityGroups: 
+        - Fn::ImportValue:  AppLoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-APP
+
+  AppDefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-APP
+      VpcId: !ImportValue VPCID
+      Port: 80
+      Protocol: HTTP
+
+  AppLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AppLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AppDefaultTargetGroup
+
+  WebLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-WEB
+      Subnets: 
+        - Fn::ImportValue:  PublicSubnet1
+        - Fn::ImportValue:  PublicSubnet2
+      SecurityGroups: 
+        - Fn::ImportValue:  WebLoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-WEB
+
+  WebLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebDefaultTargetGroup
+
+  WebDefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-Web
+      VpcId: !ImportValue VPCID
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+  AppLoadBalancer:
+      Description: AppLoadBalancer
+      Value: !Ref AppLoadBalancer
+
+  WebLoadBalancer:
+      Description: WebLoadBalancer
+      Value: !Ref WebLoadBalancer   
+  
+  AppDefaultTargetGroup:
+      Description: AppDefaultTargetGroup
+      Value: !Ref AppDefaultTargetGroup
+      Export:
+        Name: AppDefaultTargetGroup
+
+  WebDefaultTargetGroup:
+      Description: WebDefaultTargetGroup
+      Value: !Ref WebDefaultTargetGroup
+      Export:
+        Name: WebDefaultTargetGroup
+

@@ -1,0 +1,159 @@
+Description:  This template crete the autoscaling group
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: PROD
+
+# AutoScalling
+Resources:
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      TargetGroupARNs: 
+        - Fn::ImportValue:  AppDefaultTargetGroup
+      VPCZoneIdentifier: 
+        - Fn::ImportValue:  PrivateSubnet1
+        - Fn::ImportValue:  PrivateSubnet2
+      LaunchConfigurationName: !Ref LaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} APP ECS host
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        PauseTime: PT1M
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+        WaitOnResourceSignals: true
+
+  AppScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: AppAutoScalingGroup
+      Cooldown: '1'
+      ScalingAdjustment: '1'
+
+  AppCPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '10'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance is down
+      Period: '60'
+      AlarmActions:
+      - Ref: AppScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AppAutoScalingGroup
+        Value:
+          Ref: AppAutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+
+  WebAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      TargetGroupARNs: 
+        - Fn::ImportValue:  WebDefaultTargetGroup
+      VPCZoneIdentifier: 
+        - Fn::ImportValue:  PrivateSubnet1
+        - Fn::ImportValue:  PrivateSubnet2
+      LaunchConfigurationName: !Ref LaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} WEB ECS host
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        PauseTime: PT1M
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+        WaitOnResourceSignals: true
+  WebScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: WebAutoScalingGroup
+      Cooldown: '1'
+      ScalingAdjustment: '1'
+
+  WebCPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '10'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance is down
+      Period: '60'
+      AlarmActions:
+      - Ref: WebScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: WebAutoScalingGroup
+        Value:
+          Ref: WebAutoScalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+  #Launch Config
+  LaunchConfig: 
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties: 
+      LaunchConfigurationName: AppApplicationServer
+      AssociatePublicIpAddress: false
+      KeyName: aws_key_pair
+      ImageId: ami-048a01c78f7bae4aa
+      InstanceMonitoring: false
+      InstanceType: t2.nano
+      SecurityGroups: 
+        - Fn::ImportValue:  AppSecurityGroup
+      BlockDeviceMappings: 
+        - DeviceName: "/dev/sda1"
+          Ebs: 
+            VolumeSize: "50"
+            VolumeType: "io1"
+            Iops: 200
+            DeleteOnTermination: "true"
+
+#OutPut
+Outputs:
+  AppAutoScalingGroup:
+      Description: AppAutoScalingGroup
+      Value: !Ref AppAutoScalingGroup
+  
+  WebAutoScalingGroup:
+      Description: WebAutoScalingGroup
+      Value: !Ref WebAutoScalingGroup
+
+  

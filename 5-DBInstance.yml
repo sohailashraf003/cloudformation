@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS MySQL instance.
+Parameters:
+    DatabaseName:
+      Default: "customer"
+      Description: The database name (Default "customer", change if you are creating more than one database)
+      Type: String
+
+    DatabaseInstanceType:
+        Default: db.t2.micro
+        AllowedValues:
+            - db.t2.micro
+        Description: "The instance type to use for the database. Pricing: https://aws.amazon.com/rds/mysql/pricing/"
+        Type: String
+    
+    DatabasePassword:
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters. Must have length 8-41.
+        Description: The database admin account password. (Choose a secure password)
+        MaxLength: '41'
+        MinLength: '8'
+        NoEcho: 'true'
+        Type: String
+    
+    DatabaseUsername:
+        Default: "root"
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters. Must have length 1-16
+        Description: The database admin account user name. (Default "root")
+        MaxLength: '16'
+        MinLength: '1'
+        Type: String
+    
+    AllocatedStorage:
+        Default: 10
+        Description: Storage to allocate in GB (Default "20")
+        Type: Number
+        MinValue: 10
+        MaxValue: 16384
+        ConstraintDescription: Allocated storage size must be in range 20-16384 GB
+
+Resources:
+    StackAlarmTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            DisplayName: Stack Alarm Topic
+
+    DatabaseSubnetGroup:
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: CloudFormation managed DB subnet group.
+            SubnetIds:
+                - !Ref PrivateSubnet1
+                - !Ref PrivateSubnet2
+
+    ParameterGroup:
+        Type: "AWS::RDS::DBParameterGroup"
+        Properties: 
+            Description: Prisma DB parameter group 
+            Family: MySQL5.7
+            Parameters:
+                max_connections: 300
+
+    DatabaseInstance:
+        Type: AWS::RDS::DBInstance
+        Properties:
+            Engine: mysql
+            EngineVersion: 5.7.19
+            DBInstanceClass:
+                Ref: DatabaseInstanceType
+            DBSubnetGroupName:
+                Ref: DatabaseSubnetGroup    
+            DBParameterGroupName: !Ref ParameterGroup
+            PubliclyAccessible: "false"
+            StorageType: "gp2"
+            AllocatedStorage: !Ref AllocatedStorage
+            BackupRetentionPeriod: 1
+            DBInstanceIdentifier: !Ref DatabaseName
+            MasterUsername:
+              Ref: DatabaseUsername
+            MasterUserPassword:
+              Ref: DatabasePassword
+            PreferredBackupWindow: 02:00-03:00
+            PreferredMaintenanceWindow: mon:03:00-mon:04:00
+            DBSubnetGroupName:
+                Ref: DatabaseSubnetGroup
+            VPCSecurityGroups:
+                - Ref: DatabaseSecurityGroup
+            MultiAZ: "true"
+            Port: 3606
+
+    DatabaseCPUAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmDescription: Primary database CPU utilization is over 80%.
+            Namespace: AWS/RDS
+            MetricName: CPUUtilization
+            Unit: Percent
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 2
+            Threshold: 80
+            ComparisonOperator: GreaterThanOrEqualToThreshold
+            Dimensions:
+                - Name: DBInstanceIdentifier
+                  Value:
+                      Ref: DatabaseInstance
+            AlarmActions:
+                - Ref: StackAlarmTopic
+            InsufficientDataActions:
+                - Ref: StackAlarmTopic
+
+Outputs:
+    DatabaseEndpoint: 
+        Description: The database endpoint
+        Value: !GetAtt DatabaseInstance.Endpoint.Address
+    
+    DatabasePort:
+        Description: The database port
+        Value: !GetAtt DatabaseInstance.Endpoint.Port
